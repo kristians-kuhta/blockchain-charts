@@ -35,21 +35,41 @@ function initializeChartState() {
   ]
 }
 
-async function updateFirstChart(blockNumber) {
+async function transfersForBlockNumbers(blockNumbers) {
   const { address, topics } = window.charts[0];
 
-  const logs = await window.alchemy.core.getLogs({
-    fromBlock: blockNumber,
-    toBlock: blockNumber,
-    topics
+  const transfers = await Promise.all(
+    blockNumbers.map(async (blockNumber) => [
+      blockNumber,
+      await window.alchemy.core.getLogs({
+        fromBlock: blockNumber,
+        toBlock: blockNumber,
+        topics: window.charts[0].topics
+      })
+    ])
+  );
+
+  return transfers.reduce((result, blockTransfers) => {
+    result[blockTransfers[0]] = blockTransfers[1].length;
+    return result;
+  }, {});
+}
+
+function updateChartWithTransfers(chartIdx, transfers) {
+  Object.keys(transfers).forEach((blockNumber) => {
+    window.charts[chartIdx].chart.data.labels.push(blockNumber);
+    window.charts[chartIdx].chart.data.datasets.forEach(dataset => {
+      dataset.data.push(transfers[blockNumber]);
+    });
   });
 
-  window.charts[0].chart.data.labels.push(blockNumber);
-  window.charts[0].chart.data.datasets.forEach(dataset => {
-    dataset.data.push(logs.length);
-  });
+  window.charts[chartIdx].chart.update();
+}
 
-  window.charts[0].chart.update();
+async function updateFirstChart(blockNumber) {
+  const blockTransfers = await transfersForBlockNumbers([blockNumber])
+
+  updateChartWithTransfers(0, blockTransfers);
 }
 
 
@@ -70,12 +90,21 @@ function initializeBarChart(chartIndex, canvas, label, labels, data) {
   });
 }
 
-function drawFirstChart() {
+async function drawFirstChart() {
   const canvas = document.getElementById('erc20-transfers-chart');
 
-  const { labels, data } = window.charts[0];
+  const blockNumber = await window.alchemy.core.getBlockNumber();
 
-  initializeBarChart(0, canvas, 'LINK token transfers', labels, data);
+  const lookbackBlockNumbers = [...Array(10).keys()].map(i => i + blockNumber - 9);
+  const blockTransfers = await transfersForBlockNumbers(lookbackBlockNumbers);
+
+  initializeBarChart(
+    0,
+    canvas,
+    'LINK token transfers',
+    Object.keys(blockTransfers),
+    Object.values(blockTransfers)
+  );
 }
 
 
