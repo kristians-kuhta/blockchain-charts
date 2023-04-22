@@ -32,11 +32,8 @@ function initializeChartState() {
       topics: ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'],
       chart: null
     },
-    {
-      // LINK token address
-      address: '0x514910771af9ca656af840dff83e8264ecf986ca',
-      chart: null
-    },
+    { chart: null },
+    { chart: null }
   ]
 }
 
@@ -60,16 +57,28 @@ async function transfersForBlockNumbers(blockNumbers) {
   }, {});
 }
 
-async function basefeesForBlockNumbers(blockNumbers) {
-  const baseFees = await Promise.all(
+async function blockDataForBlockNumbers(blockNumbers) {
+  return await Promise.all(
     blockNumbers.map(async (blockNumber) => [
       blockNumber,
       await window.alchemy.core.getBlock(blockNumber)
     ])
   );
+}
 
-  return baseFees.reduce((result, blockData) => {
+async function basefeesForBlockNumbers(blocksData) {
+  return blocksData.reduce((result, blockData) => {
     result[blockData[0]] = blockData[1].baseFeePerGas.toString();
+
+    return result;
+  }, {});
+};
+
+async function gasRatioForBlockNumbers(blocksData) {
+  return blocksData.reduce((result, blockData) => {
+    const { gasUsed, gasLimit } = blockData[1];
+
+    result[blockData[0]] = gasUsed.mul(100).div(gasLimit).toString();
 
     return result;
   }, {});
@@ -86,9 +95,13 @@ function updateChartWithData(chartIdx, data) {
   window.charts[chartIdx].chart.update();
 }
 
-function updateCharts(blockNumber) {
+async function updateCharts(blockNumber) {
   updateFirstChart(blockNumber);
-  updateSecondChart(blockNumber);
+
+  const blocksData = await blockDataForBlockNumbers([blockNumber]);
+
+  updateSecondChart(blocksData);
+  updateThirdChart(blocksData);
 }
 
 async function updateFirstChart(blockNumber) {
@@ -97,10 +110,16 @@ async function updateFirstChart(blockNumber) {
   updateChartWithData(0, blockTransfers);
 }
 
-async function updateSecondChart(blockNumber) {
-  const blockBaseFees = await basefeesForBlockNumbers([blockNumber]);
+async function updateSecondChart(blocksData) {
+  const blockBaseFees = await basefeesForBlockNumbers(blocksData);
 
   updateChartWithData(1, blockBaseFees);
+}
+
+async function updateThirdChart(blocksData) {
+  const blockGasRatio = await gasRatioForBlockNumbers(blocksData);
+
+  updateChartWithData(2, blockGasRatio);
 }
 
 
@@ -144,7 +163,9 @@ async function drawSecondChart() {
   const blockNumber = await window.alchemy.core.getBlockNumber();
 
   const lookbackBlockNumbers = [...Array(10).keys()].map(i => i + blockNumber - 9);
-  const blockBaseFees = await basefeesForBlockNumbers(lookbackBlockNumbers);
+
+  const blocksData = await blockDataForBlockNumbers(lookbackBlockNumbers)
+  const blockBaseFees = await basefeesForBlockNumbers(blocksData);
 
   initializeBarChart(
     1,
@@ -155,11 +176,29 @@ async function drawSecondChart() {
   );
 }
 
+async function drawThirdChart() {
+  const canvas = document.getElementById('gas-used-vs-gas-limit-chart');
+
+  const blockNumber = await window.alchemy.core.getBlockNumber();
+
+  const lookbackBlockNumbers = [...Array(10).keys()].map(i => i + blockNumber - 9);
+
+  const blocksData = await blockDataForBlockNumbers(lookbackBlockNumbers)
+  const blockGasRatio = await gasRatioForBlockNumbers(blocksData);
+
+  initializeBarChart(
+    2,
+    canvas,
+    'Gas Used vs Gas Limit (%)',
+    lookbackBlockNumbers,
+    Object.values(blockGasRatio)
+  );
+}
+
 
 function drawCharts() {
   drawFirstChart();
   drawSecondChart();
-  // buildChart2();
-  // buildChart3();
+  drawThirdChart();
 }
 
