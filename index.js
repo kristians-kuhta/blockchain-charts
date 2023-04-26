@@ -75,8 +75,7 @@ async function basefeesForBlockNumbers(blocksData) {
 };
 
 async function gasRatioForBlockNumbers(blocksData) {
-  return blocksData.reduce((result, blockData) => {
-    const { gasUsed, gasLimit } = blockData[1];
+  return blocksData.reduce((result, blockData) => { const { gasUsed, gasLimit } = blockData[1];
 
     result[blockData[0]] = gasUsed.mul(100).div(gasLimit).toString();
 
@@ -85,10 +84,13 @@ async function gasRatioForBlockNumbers(blocksData) {
 };
 
 function updateChartWithData(chartIdx, data) {
+  const chartObject = window.charts[chartIdx];
+  const { chart } = chartObject;
+
   Object.keys(data).forEach((blockNumber) => {
-    window.charts[chartIdx].chart.data.labels.push(blockNumber);
-    window.charts[chartIdx].chart.data.datasets.forEach(dataset => {
-      dataset.data.push(data[blockNumber]);
+    chart.data.labels = chart.data.labels.push(blockNumber).splice(-10);
+    chart.data.datasets.forEach(dataset => {
+      dataset.data.push(data[blockNumber]).splice(-10);// = [...dataset.data.splice(-9), data[blockNumber]];
     });
   });
 
