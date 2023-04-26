@@ -88,9 +88,12 @@ function updateChartWithData(chartIdx, data) {
   const { chart } = chartObject;
 
   Object.keys(data).forEach((blockNumber) => {
-    chart.data.labels = chart.data.labels.push(blockNumber).splice(-10);
+    chart.data.labels.push(blockNumber);
+    chart.data.labels = chart.data.labels.splice(-10);
+
     chart.data.datasets.forEach(dataset => {
-      dataset.data.push(data[blockNumber]).splice(-10);// = [...dataset.data.splice(-9), data[blockNumber]];
+      dataset.data.push(data[blockNumber]);
+      dataset.data = dataset.data.splice(-10);
     });
   });
 
