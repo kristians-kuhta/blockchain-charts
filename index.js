@@ -1,5 +1,7 @@
 const { Alchemy, Network } = require('alchemy-sdk');
 const Chart = require('chart.js/auto');
+const ethers = require('ethers');
+const { utils, BigNumber } = ethers;
 
 function main() {
   const alchemyKey = new URLSearchParams(window.location.search).get('alchemyKey');
@@ -24,12 +26,16 @@ function main() {
 main();
 
 function initializeChartState() {
+  const eventSignature = 'Transfer(address,address,uint256)';
+
   window.charts = [
     {
       // LINK token address
       address: '0x514910771af9ca656af840dff83e8264ecf986ca',
       // NOTE: this is the Transfer event signature
-      topics: ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'],
+      eventSignature,
+      eventInterface: new utils.Interface([`event ${eventSignature}`]),
+      topics: [utils.id(eventSignature)],
       chart: null
     },
     { chart: null },
@@ -51,8 +57,20 @@ async function transfersForBlockNumbers(blockNumbers) {
     ])
   );
 
+  const DECIMALS = BigNumber.from('10').pow(BigNumber.from(18));
+
   return transfers.reduce((result, blockTransfers) => {
-    result[blockTransfers[0]] = blockTransfers[1].length;
+    const logs = blockTransfers[1];
+
+    result[blockTransfers[0]] = logs.reduce((volume, event) => {
+      let { data } = event;
+      if (data === '0x') {
+        data = '0x0';
+      }
+
+      return volume.add(BigNumber.from(data));
+    }, BigNumber.from(0)).div(DECIMALS).toString();
+
     return result;
   }, {});
 }
