@@ -13,6 +13,7 @@
     "alchemy-sdk": "^2.8.0",
     "browserify": "^17.0.0",
     "chart.js": "^4.2.1",
+    "ethers": "^5.7.2",
     "watchify": "^4.0.0"
   }
 }
