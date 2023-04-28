@@ -38,7 +38,6 @@ function initializeChartState() {
       topics: [utils.id(eventSignature)],
       chart: null
     },
-    { chart: null },
     { chart: null }
   ]
 }
@@ -101,7 +100,7 @@ async function gasRatioForBlockNumbers(blocksData) {
   }, {});
 };
 
-function updateChartWithData(chartIdx, data) {
+function updateChartWithData(chartIdx, datasetIdx, data) {
   const chartObject = window.charts[chartIdx];
   const { chart } = chartObject;
 
@@ -109,10 +108,9 @@ function updateChartWithData(chartIdx, data) {
     chart.data.labels.push(blockNumber);
     chart.data.labels = chart.data.labels.splice(-10);
 
-    chart.data.datasets.forEach(dataset => {
-      dataset.data.push(data[blockNumber]);
-      dataset.data = dataset.data.splice(-10);
-    });
+    const dataset = chart.data.datasets[datasetIdx];
+    dataset.data.push(data[blockNumber]);
+    dataset.data = dataset.data.splice(-10);
   });
 
   window.charts[chartIdx].chart.update();
@@ -124,30 +122,24 @@ async function updateCharts(blockNumber) {
   const blocksData = await blockDataForBlockNumbers([blockNumber]);
 
   updateSecondChart(blocksData);
-  updateThirdChart(blocksData);
 }
 
 async function updateFirstChart(blockNumber) {
   const blockTransfers = await transfersForBlockNumbers([blockNumber])
 
-  updateChartWithData(0, blockTransfers);
+  updateChartWithData(0, 0, blockTransfers);
 }
 
 async function updateSecondChart(blocksData) {
   const blockBaseFees = await basefeesForBlockNumbers(blocksData);
-
-  updateChartWithData(1, blockBaseFees);
-}
-
-async function updateThirdChart(blocksData) {
   const blockGasRatio = await gasRatioForBlockNumbers(blocksData);
 
-  updateChartWithData(2, blockGasRatio);
+  updateChartWithData(1, 0, blockBaseFees);
+  updateChartWithData(1, 1, blockGasRatio);
 }
 
-
-function initializeBarChart(chartIndex, canvas, label, labels, data) {
-  window.charts[chartIndex].chart = new Chart(canvas, {
+function initializeFirstChart(canvas, label, labels, data) {
+  window.charts[0].chart = new Chart(canvas, {
     type: 'bar',
     data: {
       labels,
@@ -163,6 +155,56 @@ function initializeBarChart(chartIndex, canvas, label, labels, data) {
   });
 }
 
+function initializeSecondChart(canvas, lineLabels, labels, firstLineData, secondLineData) {
+  window.charts[1].chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: lineLabels[0],
+          data: Object.values(firstLineData),
+          fill: false,
+          cubicInterpolationMode: 'monotone',
+          tension: 0.4,
+          yAxisID: 'y'
+        },
+        {
+          label: lineLabels[1],
+          data: Object.values(secondLineData),
+          fill: false,
+          cubicInterpolationMode: 'monotone',
+          tension: 0.4,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      stacked: false,
+      scales: {
+        y: {
+          beginAtZero: false,
+          type: 'linear',
+          display: true,
+          position: 'right',
+        },
+        y1: {
+          beginAtZero: true,
+          type: 'linear',
+          display: true,
+          position: 'left',
+          min: 0,
+          max: 100,
+          grid: {
+            // only want the grid lines for one axis to show up
+            drawOnChartArea: false,
+          },
+        }
+      }
+    }
+  });
+}
+
 async function drawFirstChart() {
   const canvas = document.getElementById('erc20-transfers-chart');
 
@@ -171,8 +213,7 @@ async function drawFirstChart() {
   const lookbackBlockNumbers = [...Array(10).keys()].map(i => i + blockNumber - 9);
   const blockTransfers = await transfersForBlockNumbers(lookbackBlockNumbers);
 
-  initializeBarChart(
-    0,
+  initializeFirstChart(
     canvas,
     'LINK token transfers',
     Object.keys(blockTransfers),
@@ -181,7 +222,7 @@ async function drawFirstChart() {
 }
 
 async function drawSecondChart() {
-  const canvas = document.getElementById('basefee-chart');
+  const canvas = document.getElementById('second-chart');
 
   const blockNumber = await window.alchemy.core.getBlockNumber();
 
@@ -189,39 +230,19 @@ async function drawSecondChart() {
 
   const blocksData = await blockDataForBlockNumbers(lookbackBlockNumbers)
   const blockBaseFees = await basefeesForBlockNumbers(blocksData);
-
-  initializeBarChart(
-    1,
-    canvas,
-    'BASEFEE',
-    lookbackBlockNumbers,
-    Object.values(blockBaseFees)
-  );
-}
-
-async function drawThirdChart() {
-  const canvas = document.getElementById('gas-used-vs-gas-limit-chart');
-
-  const blockNumber = await window.alchemy.core.getBlockNumber();
-
-  const lookbackBlockNumbers = [...Array(10).keys()].map(i => i + blockNumber - 9);
-
-  const blocksData = await blockDataForBlockNumbers(lookbackBlockNumbers)
   const blockGasRatio = await gasRatioForBlockNumbers(blocksData);
 
-  initializeBarChart(
-    2,
+  initializeSecondChart(
     canvas,
-    'Gas Used vs Gas Limit (%)',
+    ['BASEFEE', 'Gas used vs Gas limit (%)'],
     lookbackBlockNumbers,
+    Object.values(blockBaseFees),
     Object.values(blockGasRatio)
   );
 }
 
-
 function drawCharts() {
   drawFirstChart();
   drawSecondChart();
-  drawThirdChart();
 }
 
